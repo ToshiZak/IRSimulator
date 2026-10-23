@@ -1,0 +1,566 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Simulateur IR Maroc</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Concept : un formulaire à gauche (paramètres de paie), une fiche de calcul à droite
+   qui se lit comme un bulletin : brut, cotisations, net imposable, IR, net à payer. */
+:root {
+  --bg: #f1f4f6;
+  --surface: #ffffff;
+  --fg: #14202b;
+  --muted: #5a6a77;
+  --line: #d8e0e6;
+  --accent: #0b6b8a;
+  --accent-fg: #ffffff;
+  --accent-soft: #e0eff4;
+  --neg: #9b3b2e;
+  --font-sans: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e161c;
+    --surface: #17222a;
+    --fg: #e6eef2;
+    --muted: #93a4b0;
+    --line: #2a3a45;
+    --accent: #5cc0de;
+    --accent-fg: #06222c;
+    --accent-soft: #163340;
+    --neg: #e6917f;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e161c;
+  --surface: #17222a;
+  --fg: #e6eef2;
+  --muted: #93a4b0;
+  --line: #2a3a45;
+  --accent: #5cc0de;
+  --accent-fg: #06222c;
+  --accent-soft: #163340;
+  --neg: #e6917f;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.45;
+  padding-block: 24px 40px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 1240px; margin: 0 auto; }
+header { margin-bottom: 20px; }
+h1 { font-size: 1.6rem; font-weight: 600; margin: 0 0 4px; letter-spacing: -0.01em; text-wrap: balance; }
+.sub { margin: 0; color: var(--muted); max-width: 62ch; }
+
+.grid { display: grid; gap: 20px; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 1100px) {
+  .grid { grid-template-columns: minmax(0, 360px) minmax(0, 1fr); align-items: start; }
+  .results { position: sticky; top: 16px; }
+}
+
+.panel, .results {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 20px;
+  min-width: 0;
+}
+.panel { display: grid; gap: 18px; }
+h2 {
+  font-size: 0.72rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--muted); margin: 0;
+}
+
+.field { display: grid; gap: 6px; min-width: 0; }
+.field > label, .field > .lbl { font-weight: 500; }
+.hint { color: var(--muted); font-size: 0.85rem; margin: 0; }
+.inp {
+  display: flex; align-items: center;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--bg);
+  min-height: 44px; min-width: 0;
+}
+.inp:focus-within { outline: 2px solid var(--accent); outline-offset: 1px; }
+.inp input, .inp select {
+  flex: 1; min-width: 0; height: 42px; border: 0; background: transparent; color: var(--fg);
+  font: inherit; font-family: var(--font-mono); padding: 0 12px; outline: none;
+}
+.inp select { font-family: var(--font-sans); cursor: pointer; }
+.inp .unit { padding-right: 12px; color: var(--muted); font-size: 0.85rem; }
+.row2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+
+.stepper { display: flex; align-items: center; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); min-height: 44px; }
+.stepper:focus-within { outline: 2px solid var(--accent); outline-offset: 1px; }
+.stepper button {
+  width: 44px; height: 42px; border: 0; background: transparent; color: var(--accent);
+  font-size: 1.3rem; font-family: var(--font-sans); cursor: pointer; border-radius: 8px;
+}
+.stepper button:hover { background: var(--accent-soft); }
+.stepper button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.stepper input {
+  flex: 1; min-width: 0; height: 42px; border: 0; background: transparent; color: var(--fg);
+  text-align: center; font-family: var(--font-mono); font-size: 1rem; outline: none;
+  -moz-appearance: textfield; appearance: textfield;
+}
+.stepper input::-webkit-outer-spin-button, .stepper input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+.check { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; }
+.check input { width: 20px; height: 20px; margin: 2px 0 0; accent-color: var(--accent); flex: none; }
+.check span { display: grid; gap: 2px; }
+.check b { font-weight: 500; }
+
+.transport {
+  display: flex; justify-content: space-between; gap: 12px; align-items: baseline;
+  border: 1px dashed var(--line); border-radius: 8px; padding: 10px 12px; font-size: 0.9rem;
+}
+.transport .v { font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.transport.off { color: var(--muted); }
+.transport.off .v { text-decoration: line-through; }
+
+.results > h2 { margin-bottom: 12px; }
+.kpis { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 20px; }
+.kpi { border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; min-width: 0; }
+.kpi .k { font-size: 0.8rem; color: var(--muted); }
+.kpi .n { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 1.3rem; font-weight: 500; margin-top: 2px; overflow-wrap: anywhere; }
+.kpi .n small { font-size: 0.7em; color: var(--muted); font-weight: 400; }
+.kpi.main { grid-column: 1 / -1; background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
+.kpi.main .k, .kpi.main .n small { color: var(--accent-fg); opacity: 0.85; }
+.kpi.main .n { font-size: 1.9rem; font-weight: 600; }
+tr.gaprow td { background: var(--accent-soft); font-weight: 600; padding: 10px 12px; }
+tr.gaprow td:first-child { border-radius: 8px 0 0 8px; }
+tr.gaprow td:last-child { border-radius: 0 8px 8px 0; }
+
+.tablewrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; }
+td, th { padding: 7px 0; text-align: left; font-weight: 400; vertical-align: baseline; }
+td.a { text-align: right; font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; padding-left: 16px; }
+td.a.neg { color: var(--neg); }
+tr.sec th {
+  padding-top: 18px; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--line);
+}
+tr.tot td { font-weight: 600; border-top: 1px solid var(--line); }
+tr.sub td { color: var(--muted); font-size: 0.9rem; }
+.foot { margin: 20px 0 0; color: var(--muted); font-size: 0.85rem; max-width: 70ch; }
+
+.more { border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+.more summary {
+  display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 8px 12px; cursor: pointer;
+  list-style: none; font-weight: 500; border-radius: 8px;
+}
+.more summary::-webkit-details-marker { display: none; }
+.more summary::before {
+  content: ""; width: 7px; height: 7px; flex: none; border-right: 2px solid var(--accent);
+  border-bottom: 2px solid var(--accent); transform: rotate(-45deg);
+}
+.more[open] summary::before { transform: rotate(45deg); }
+.more summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.more .st { flex: 1; min-width: 0; }
+.more .tot { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 0.9rem; color: var(--muted); white-space: nowrap; }
+.morebody { display: grid; gap: 16px; padding: 4px 12px 14px; border-top: 1px solid var(--line); padding-top: 14px; }
+.row3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.mini { display: grid; gap: 4px; font-size: 0.85rem; color: var(--muted); min-width: 0; }
+.mini .inp { background: var(--surface); }
+.mini .inp input { padding: 0 8px; }
+.mini .inp .unit { padding-right: 8px; }
+.kv { display: grid; gap: 4px; font-size: 0.9rem; }
+.kv div { display: flex; justify-content: space-between; gap: 12px; color: var(--muted); }
+.kv div span:last-child { font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--fg); }
+.kv div.sum { border-top: 1px solid var(--line); padding-top: 6px; margin-top: 2px; color: var(--fg); font-weight: 600; }
+.layout { display: grid; gap: 20px; grid-template-columns: minmax(0, 1fr); }
+.content { min-width: 0; }
+.tabs { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
+.tab {
+  flex: none; min-height: 44px; padding: 10px 16px; border: 1px solid transparent; border-radius: 8px;
+  background: transparent; color: var(--muted); cursor: pointer; text-align: left;
+  font-family: var(--font-mono); font-size: 1rem; font-weight: 500;
+}
+.tab:hover { background: var(--accent-soft); color: var(--fg); }
+.tab[aria-selected="true"] { background: var(--accent); color: var(--accent-fg); }
+.tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (min-width: 860px) {
+  .layout { grid-template-columns: 120px minmax(0, 1fr); align-items: start; }
+  .tabs { flex-direction: column; position: sticky; top: 16px; overflow: visible; }
+}
+.empty {
+  border: 1px dashed var(--line); border-radius: 10px; padding: 48px 20px; text-align: center; color: var(--muted);
+}
+.empty h2 { font-size: 1.4rem; letter-spacing: 0; text-transform: none; color: var(--fg); font-family: var(--font-mono); margin-bottom: 6px; }
+.empty p { margin: 0; }
+
+.bareme { margin-top: 20px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 20px; min-width: 0; }
+.bareme h2 { margin-bottom: 4px; }
+.bareme .lead { margin: 0 0 14px; color: var(--muted); font-size: 0.9rem; max-width: 72ch; }
+.bareme table { min-width: 560px; }
+.bareme thead th {
+  font-size: 0.72rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted);
+  border-bottom: 1px solid var(--line); padding: 8px 12px; text-align: right;
+}
+.bareme thead th:first-child { text-align: left; }
+.bareme td { padding: 9px 12px; border-bottom: 1px solid var(--line); }
+.bareme td.a { padding-left: 12px; }
+.bareme tr.on td { background: var(--accent-soft); font-weight: 600; }
+.badge {
+  display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 99px; font-size: 0.72rem;
+  font-weight: 600; background: var(--accent); color: var(--accent-fg); vertical-align: 1px;
+}
+
+@media (max-width: 420px) {
+  .bareme { padding: 16px; }
+  .panel, .results { padding: 16px; }
+  .kpi.main .n { font-size: 1.6rem; }
+}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Simulateur IR Maroc</h1>
+    <p class="sub">Saisissez le salaire de base du mois. Le net imposable, l'IR retenu et le net à payer se calculent avec les règles de votre fichier. Les valeurs préremplies reprennent la ligne de janvier.</p>
+  </header>
+
+  <div class="layout">
+    <nav class="tabs" id="tabs" role="tablist" aria-label="Année" aria-orientation="vertical"></nav>
+    <div class="content">
+      <div class="tabpanel" id="panel" role="tabpanel" aria-labelledby="tab-2026">
+  <div class="grid">
+    <form class="panel" id="form" autocomplete="off" onsubmit="return false">
+      <h2>Paramètres du mois</h2>
+
+      <div class="field">
+        <label for="base">Salaire de base</label>
+        <div class="inp"><input id="base" type="text" inputmode="decimal" value="64 596,57"><span class="unit">MAD</span></div>
+      </div>
+
+      <details class="more" id="more">
+        <summary><span class="st">Primes et heures supplémentaires</span><span class="tot" id="moreTot">0,00 MAD</span></summary>
+        <div class="morebody">
+          <div class="field">
+            <label for="prime">Prime</label>
+            <div class="inp"><input id="prime" type="text" inputmode="decimal" value="0"><span class="unit">MAD</span></div>
+            <p class="hint">Bonus, prime de fin d'année, 13e mois.</p>
+          </div>
+          <div class="field">
+            <span class="lbl" id="hsLbl">Heures supplémentaires</span>
+            <div class="row3" role="group" aria-labelledby="hsLbl">
+              <label class="mini"><span>à 125 %</span><div class="inp"><input id="h125" type="text" inputmode="decimal" value="0"><span class="unit">h</span></div></label>
+              <label class="mini"><span>à 150 %</span><div class="inp"><input id="h150" type="text" inputmode="decimal" value="0"><span class="unit">h</span></div></label>
+              <label class="mini"><span>à 200 %</span><div class="inp"><input id="h200" type="text" inputmode="decimal" value="0"><span class="unit">h</span></div></label>
+            </div>
+            <p class="hint">Taux horaire = salaire de base ÷ 191. Primes et heures supplémentaires s'ajoutent au brut imposable et entrent dans la base de l'ancienneté.</p>
+          </div>
+          <div class="kv" id="moreCalc"></div>
+        </div>
+      </details>
+
+      <div class="field">
+        <label for="anc">Prime d'ancienneté</label>
+        <div class="inp">
+          <select id="anc">
+            <option value="0">0 %</option>
+            <option value="5">5 %</option>
+            <option value="10" selected>10 %</option>
+            <option value="15">15 %</option>
+            <option value="20">20 %</option>
+            <option value="25">25 %</option>
+          </select>
+        </div>
+      </div>
+
+      <label class="check" for="marie">
+        <input id="marie" type="checkbox" checked>
+        <span><b>Marié(e)</b><span class="hint">Porte l'indemnité de logement à 10 % au lieu de 5 %.</span></span>
+      </label>
+
+      <div class="field">
+        <label for="log">Indemnité de logement (% du salaire de base)</label>
+        <div class="inp"><input id="log" type="text" inputmode="decimal" value="10"><span class="unit">%</span></div>
+      </div>
+
+      <div class="field">
+        <span class="lbl" id="chargesLbl">Personnes à charge</span>
+        <div class="stepper" role="group" aria-labelledby="chargesLbl">
+          <button type="button" id="cMinus" aria-label="Retirer une personne">−</button>
+          <input id="charges" type="number" min="0" max="6" step="1" value="3" aria-labelledby="chargesLbl">
+          <button type="button" id="cPlus" aria-label="Ajouter une personne">+</button>
+        </div>
+        <p class="hint">500 MAD par an et par personne, 6 personnes au maximum.</p>
+      </div>
+
+      <label class="check" for="p500">
+        <input id="p500" type="checkbox">
+        <span><b>Prime non imposable de 500 MAD</b><span class="hint">Cochée, elle remplace la prime de transport imposable.</span></span>
+      </label>
+
+      <div class="transport" id="transport">
+        <span>Prime de transport imposable</span>
+        <span class="v" id="transportV">3 772,00</span>
+      </div>
+    </form>
+
+    <section class="results" aria-live="polite">
+      <h2>Résultat en <span id="resYear">2026</span></h2>
+      <div class="kpis">
+        <div class="kpi main"><div class="k">Net à payer</div><div class="n" id="kNet">–</div></div>
+        <div class="kpi"><div class="k">Net imposable</div><div class="n" id="kNI">–</div></div>
+        <div class="kpi"><div class="k">IR retenu</div><div class="n" id="kIR">–</div></div>
+      </div>
+      <div class="tablewrap"><table><tbody id="detail"></tbody></table></div>
+      <p class="foot">Barème IR annuel appliqué au net imposable du mois multiplié par 12, puis ramené au mois. Cotisations : CNSS 4,48 % plafonnée à 6 000 MAD, assurance 1 % et retraite CIMR 4,5 %, calculées hors prime de transport et hors prime non imposable. Net à payer = brut − cotisations − IR.</p>
+    </section>
+  </div>
+
+  <section class="bareme" aria-labelledby="baremeT">
+    <h2 id="baremeT">Barème IR appliqué en <span id="baremeYear">2026</span></h2>
+    <p class="lead">IR annuel = net imposable annuel × taux − somme à déduire − 500 MAD par personne à charge (6 maximum). L'IR retenu chaque mois est l'IR annuel divisé par 12. La tranche utilisée par le calcul ci-dessus est en surbrillance.</p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Net imposable annuel</th><th>Équivalent mensuel</th><th>Taux</th><th>Somme à déduire</th></tr></thead>
+        <tbody id="bareme"></tbody>
+      </table>
+    </div>
+  </section>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// CALC-START
+var TRANSPORT = 3772;
+var NON_IMPOSABLE = 500;
+// Tranches par année : [plafond annuel, taux]. La somme à déduire se calcule à partir des tranches.
+var TRANCHES = {
+  '2026': [[40000, 0], [60000, 0.10], [80000, 0.20], [100000, 0.30], [180000, 0.34], [Infinity, 0.37]],
+  '2027': [[60000, 0], [80000, 0.10], [100000, 0.20], [180000, 0.34], [Infinity, 0.37]],
+  '2028': [[60000, 0], [100000, 0.10], [200000, 0.25], [Infinity, 0.37]],
+  '2029': [[60000, 0], [130000, 0.10], [200000, 0.20], [Infinity, 0.35]],
+  '2030': [[60000, 0], [150000, 0.10], [200000, 0.20], [Infinity, 0.30]]
+};
+function bareme(year) {
+  var t = TRANCHES[year] || TRANCHES['2026'];
+  var out = [], ded = 0;
+  for (var i = 0; i < t.length; i++) {
+    if (i > 0) ded += t[i - 1][0] * (t[i][1] - t[i - 1][1]);
+    out.push([t[i][0], t[i][1], Math.round(ded * 100) / 100]);
+  }
+  return out;
+}
+var HEURES_MOIS = 191;
+function overtime(base, h) {
+  var rate = Math.max(0, base || 0) / HEURES_MOIS;
+  var a125 = rate * 1.25 * Math.max(0, h.h125 || 0);
+  var a150 = rate * 1.5 * Math.max(0, h.h150 || 0);
+  var a200 = rate * 2 * Math.max(0, h.h200 || 0);
+  return { rate: rate, a125: a125, a150: a150, a200: a200, total: a125 + a150 + a200 };
+}
+function calc(p) {
+  var base = Math.max(0, p.base || 0);
+  var vari = Math.max(0, p.vari || 0);
+  var anc = (base + vari) * (p.ancPct || 0) / 100;
+  var log = base * (p.logPct || 0) / 100;
+  var transport = p.nonImp ? 0 : TRANSPORT;
+  var extra = p.nonImp ? NON_IMPOSABLE : 0;
+  var cotisable = base + vari + anc + log;
+  var brutImposable = cotisable + transport;
+  var brut = brutImposable + extra;
+  var cnss = Math.min(cotisable, 6000) * 0.0448;
+  var assur = cotisable * 0.01;
+  var cimr = cotisable * 0.045;
+  var cotis = cnss + assur + cimr;
+  var fpRate = brutImposable * 12 <= 78000 ? 0.35 : 0.25;
+  var fpCap = brutImposable * 12 <= 78000 ? 2500 : 2916.67;
+  var fp = Math.min(brutImposable * fpRate, fpCap);
+  var ni = Math.max(0, brutImposable - cotis - fp);
+  var annuel = ni * 12;
+  var B = bareme(p.year);
+  var idx = B.length - 1;
+  for (var i = 0; i < B.length; i++) { if (annuel <= B[i][0]) { idx = i; break; } }
+  var t = B[idx];
+  var irBrutAn = annuel * t[1] - t[2];
+  var nb = Math.min(Math.max(0, Math.floor(p.charges || 0)), 6);
+  var chargesAn = nb * 500;
+  var irAn = Math.max(0, irBrutAn - chargesAn);
+  var ir = irAn / 12;
+  var net = brut - cotis - ir;
+  return {
+    base: base, vari: vari, anc: anc, log: log, transport: transport, extra: extra,
+    brutImposable: brutImposable, brut: brut, cnss: cnss, assur: assur, cimr: cimr, cotis: cotis,
+    fp: fp, ni: ni, annuel: annuel, idx: idx, taux: t[1], deduire: t[2], irBrutAn: irBrutAn,
+    nb: nb, chargesAn: chargesAn, irAn: irAn, ir: ir, net: net
+  };
+}
+// CALC-END
+
+var nf = new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+function fmt(n) { return nf.format(n); }
+function pct(n) { return String(+(n * 100).toFixed(2)).replace('.', ',') + ' %'; }
+function parseNum(s) {
+  var v = parseFloat(String(s).replace(/[\s  ]/g, '').replace(',', '.'));
+  return isNaN(v) ? 0 : v;
+}
+function $(id) { return document.getElementById(id); }
+
+function row(label, amount, cls, neg) {
+  return '<tr class="' + (cls || '') + '"><td>' + label + '</td><td class="a' + (neg ? ' neg' : '') + '">' + (neg ? '− ' : '') + fmt(amount) + '</td></tr>';
+}
+function sec(title) { return '<tr class="sec"><th colspan="2">' + title + '</th></tr>'; }
+
+var YEAR = '2026';
+var nf0 = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 });
+function renderBareme(r, year) {
+  var B = bareme(year), lo = 0, h = '';
+  for (var i = 0; i < B.length; i++) {
+    var hi = B[i][0], t = B[i][1], d = B[i][2];
+    var last = hi === Infinity;
+    var an = last ? 'Plus de ' + nf0.format(lo) : nf0.format(lo) + ' à ' + nf0.format(hi);
+    var mo = last ? 'Plus de ' + fmt(lo / 12) : fmt(lo / 12) + ' à ' + fmt(hi / 12);
+    var on = i === r.idx;
+    h += '<tr' + (on ? ' class="on"' : '') + '><td>' + an + (on ? '<span class="badge">Appliquée</span>' : '') +
+      '</td><td class="a">' + mo + '</td><td class="a">' + pct(t) + '</td><td class="a">' + nf0.format(d) + '</td></tr>';
+    lo = hi;
+  }
+  $('bareme').innerHTML = h;
+}
+
+function update() {
+  var baseIn = parseNum($('base').value);
+  var ot = overtime(baseIn, { h125: parseNum($('h125').value), h150: parseNum($('h150').value), h200: parseNum($('h200').value) });
+  var primeAmt = Math.max(0, parseNum($('prime').value));
+  var p = {
+    year: YEAR,
+    base: baseIn,
+    vari: primeAmt + ot.total,
+    ancPct: parseNum($('anc').value),
+    logPct: parseNum($('log').value),
+    charges: parseNum($('charges').value),
+    nonImp: $('p500').checked
+  };
+  var r = calc(p);
+
+  $('transport').classList.toggle('off', p.nonImp);
+  $('transportV').textContent = fmt(TRANSPORT);
+
+  $('kNet').innerHTML = fmt(r.net) + ' <small>MAD</small>';
+  var gap = 0;
+  if (YEAR !== '2026') {
+    var ref = calc({ year: '2026', base: p.base, vari: p.vari, ancPct: p.ancPct, logPct: p.logPct, charges: p.charges, nonImp: p.nonImp });
+    gap = r.net - ref.net;
+  }
+  $('kNI').innerHTML = fmt(r.ni) + ' <small>MAD</small>';
+  $('kIR').innerHTML = fmt(r.ir) + ' <small>MAD</small>';
+
+  var h = '';
+  h += sec('Rémunération');
+  h += row('Salaire de base', r.base);
+  if (ot.total > 0) h += row('Heures supplémentaires', ot.total);
+  if (primeAmt > 0) h += row('Prime', primeAmt);
+  h += row('Prime d\'ancienneté (' + String(p.ancPct).replace('.', ',') + ' %)', r.anc);
+  h += row('Indemnité de logement (' + String(p.logPct).replace('.', ',') + ' %)', r.log);
+  if (p.nonImp) h += row('Prime non imposable', r.extra);
+  else h += row('Prime de transport imposable', r.transport);
+  h += row('Total brut', r.brut, 'tot');
+
+  h += sec('Cotisations et net imposable');
+  h += row('CNSS (4,48 %, plafond 6 000)', r.cnss, '', true);
+  h += row('Assurance (1 %)', r.assur, '', true);
+  h += row('Retraite CIMR (4,5 %)', r.cimr, '', true);
+  h += row('Total cotisations', r.cotis, 'tot', true);
+  h += row('Frais professionnels', r.fp, '', true);
+  h += row('Net imposable', r.ni, 'tot');
+
+  h += sec('Impôt sur le revenu');
+  h += row('Net imposable annuel (× 12)', r.annuel, 'sub');
+  h += '<tr class="sub"><td>Tranche : taux ' + pct(r.taux) + ', somme à déduire ' + fmt(r.deduire).replace(',00', '') + '</td><td class="a"></td></tr>';
+  h += row('IR annuel avant charges de famille', r.irBrutAn);
+  h += row('Charges de famille (' + r.nb + ' × 500)', r.chargesAn, '', true);
+  h += row('IR annuel net', r.irAn);
+  h += row('IR retenu du mois', r.ir, 'tot', true);
+
+  h += sec('Net');
+  h += row('Net à payer', r.net, 'tot');
+  if (YEAR === '2026') {
+    h += '<tr class="gaprow"><td>Écart du net avec 2026</td><td class="a">Année de référence</td></tr>';
+  } else {
+    h += '<tr class="gaprow"><td>Écart du net avec 2026</td><td class="a' + (gap < -0.005 ? ' neg' : '') + '">' +
+      (gap < -0.005 ? '− ' : gap > 0.005 ? '+ ' : '') + fmt(Math.abs(gap)) + '</td></tr>';
+  }
+
+  $('detail').innerHTML = h;
+  $('moreTot').textContent = fmt(primeAmt + ot.total) + ' MAD';
+  var kv = '<div><span>Taux horaire (base ÷ 191)</span><span>' + fmt(ot.rate) + '</span></div>';
+  if (ot.a125 > 0) kv += '<div><span>Heures à 125 %</span><span>' + fmt(ot.a125) + '</span></div>';
+  if (ot.a150 > 0) kv += '<div><span>Heures à 150 %</span><span>' + fmt(ot.a150) + '</span></div>';
+  if (ot.a200 > 0) kv += '<div><span>Heures à 200 %</span><span>' + fmt(ot.a200) + '</span></div>';
+  kv += '<div><span>Total heures supplémentaires</span><span>' + fmt(ot.total) + '</span></div>';
+  kv += '<div><span>Prime</span><span>' + fmt(primeAmt) + '</span></div>';
+  kv += '<div class="sum"><span>Total ajouté au brut</span><span>' + fmt(primeAmt + ot.total) + '</span></div>';
+  $('moreCalc').innerHTML = kv;
+  $('resYear').textContent = YEAR;
+  $('baremeYear').textContent = YEAR;
+  renderBareme(r, YEAR);
+}
+
+$('marie').addEventListener('change', function () {
+  $('log').value = this.checked ? '10' : '5';
+  update();
+});
+function setCharges(v) {
+  v = Math.min(6, Math.max(0, Math.floor(v)));
+  $('charges').value = v;
+  update();
+}
+$('cMinus').addEventListener('click', function () { setCharges(parseNum($('charges').value) - 1); });
+$('cPlus').addEventListener('click', function () { setCharges(parseNum($('charges').value) + 1); });
+$('charges').addEventListener('change', function () { setCharges(parseNum(this.value)); });
+['base', 'prime', 'h125', 'h150', 'h200', 'anc', 'log', 'p500'].forEach(function (id) {
+  $(id).addEventListener('input', update);
+  $(id).addEventListener('change', update);
+});
+update();
+
+var YEARS = ['2026', '2027', '2028', '2029', '2030'];
+(function () {
+  var nav = $('tabs'), tabs = [];
+  YEARS.forEach(function (y, i) {
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'tab'; b.id = 'tab-' + y; b.textContent = y;
+    b.setAttribute('role', 'tab'); b.setAttribute('aria-controls', 'panel');
+    b.setAttribute('aria-selected', i === 0 ? 'true' : 'false');
+    b.tabIndex = i === 0 ? 0 : -1;
+    nav.appendChild(b); tabs.push(b);
+  });
+  function select(i, focus) {
+    YEAR = YEARS[i];
+    tabs.forEach(function (b, j) {
+      var on = i === j;
+      b.setAttribute('aria-selected', on ? 'true' : 'false');
+      b.tabIndex = on ? 0 : -1;
+    });
+    $('panel').setAttribute('aria-labelledby', 'tab-' + YEAR);
+    update();
+    if (focus) tabs[i].focus();
+  }
+  tabs.forEach(function (b, i) {
+    b.addEventListener('click', function () { select(i, false); });
+    b.addEventListener('keydown', function (e) {
+      var k = e.key, n = tabs.length;
+      if (k === 'ArrowDown' || k === 'ArrowRight') { e.preventDefault(); select((i + 1) % n, true); }
+      else if (k === 'ArrowUp' || k === 'ArrowLeft') { e.preventDefault(); select((i - 1 + n) % n, true); }
+      else if (k === 'Home') { e.preventDefault(); select(0, true); }
+      else if (k === 'End') { e.preventDefault(); select(n - 1, true); }
+    });
+  });
+})();
+</script>
+
+</body></html>
