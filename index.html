@@ -139,6 +139,7 @@ h2 {
 tr.gaprow td { background: var(--accent-soft); font-weight: 600; padding: 10px 12px; }
 tr.gaprow td:first-child { border-radius: 8px 0 0 8px; }
 tr.gaprow td:last-child { border-radius: 0 8px 8px 0; }
+tr.gaprow + tr.gaprow td { border-top: 2px solid var(--surface); }
 
 .tablewrap { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; }
@@ -322,6 +323,7 @@ tr.sub td { color: var(--muted); font-size: 0.9rem; }
   <section class="bareme" aria-labelledby="baremeT">
     <h2 id="baremeT">Barème IR appliqué en <span id="baremeYear">2026</span></h2>
     <p class="lead">IR annuel = net imposable annuel × taux − somme à déduire − 500 MAD par personne à charge (6 maximum). L'IR retenu chaque mois est l'IR annuel divisé par 12. La tranche utilisée par le calcul ci-dessus est en surbrillance.</p>
+    <p class="lead" id="baremeNote" hidden>Pour 2031 et après, ce barème est présenté comme une cible dans le tableau d'évolution des tranches. Il n'apparaît pas dans le texte de loi qui s'arrête à 2030.</p>
     <div class="tablewrap">
       <table>
         <thead><tr><th>Net imposable annuel</th><th>Équivalent mensuel</th><th>Taux</th><th>Somme à déduire</th></tr></thead>
@@ -344,7 +346,8 @@ var TRANCHES = {
   '2027': [[60000, 0], [80000, 0.10], [100000, 0.20], [180000, 0.34], [Infinity, 0.37]],
   '2028': [[60000, 0], [100000, 0.10], [200000, 0.25], [Infinity, 0.37]],
   '2029': [[60000, 0], [130000, 0.10], [200000, 0.20], [Infinity, 0.35]],
-  '2030': [[60000, 0], [150000, 0.10], [200000, 0.20], [Infinity, 0.30]]
+  '2030': [[60000, 0], [150000, 0.10], [200000, 0.20], [Infinity, 0.30]],
+  '2031': [[60000, 0], [150000, 0.10], [500000, 0.20], [Infinity, 0.30]]
 };
 function bareme(year) {
   var t = TRANCHES[year] || TRANCHES['2026'];
@@ -415,6 +418,7 @@ function row(label, amount, cls, neg) {
 }
 function sec(title) { return '<tr class="sec"><th colspan="2">' + title + '</th></tr>'; }
 
+var YEARS = ['2026', '2027', '2028', '2029', '2030', '2031'];
 var YEAR = '2026';
 var nf0 = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 });
 function renderBareme(r, year) {
@@ -451,11 +455,16 @@ function update() {
   $('transportV').textContent = fmt(TRANSPORT);
 
   $('kNet').innerHTML = fmt(r.net) + ' <small>MAD</small>';
-  var gap = 0;
-  if (YEAR !== '2026') {
-    var ref = calc({ year: '2026', base: p.base, vari: p.vari, ancPct: p.ancPct, logPct: p.logPct, charges: p.charges, nonImp: p.nonImp });
-    gap = r.net - ref.net;
+  function netOf(y) {
+    return calc({ year: y, base: p.base, vari: p.vari, ancPct: p.ancPct, logPct: p.logPct, charges: p.charges, nonImp: p.nonImp }).net;
   }
+  var yi = YEARS.indexOf(YEAR);
+  var gap = YEAR !== '2026' ? r.net - netOf('2026') : 0;
+  var gapPrev = yi > 0 ? r.net - netOf(YEARS[yi - 1]) : 0;
+  function gapCell(g) {
+    return '<td class="a' + (g < -0.005 ? ' neg' : '') + '">' + (g < -0.005 ? '− ' : g > 0.005 ? '+ ' : '') + fmt(Math.abs(g)) + '</td>';
+  }
+  $('baremeNote').hidden = YEAR !== '2031';
   $('kNI').innerHTML = fmt(r.ni) + ' <small>MAD</small>';
   $('kIR').innerHTML = fmt(r.ir) + ' <small>MAD</small>';
 
@@ -491,8 +500,9 @@ function update() {
   if (YEAR === '2026') {
     h += '<tr class="gaprow"><td>Écart du net avec 2026</td><td class="a">Année de référence</td></tr>';
   } else {
-    h += '<tr class="gaprow"><td>Écart du net avec 2026</td><td class="a' + (gap < -0.005 ? ' neg' : '') + '">' +
-      (gap < -0.005 ? '− ' : gap > 0.005 ? '+ ' : '') + fmt(Math.abs(gap)) + '</td></tr>';
+    var prevY = YEARS[yi - 1];
+    if (prevY !== '2026') h += '<tr class="gaprow"><td>Écart du net avec ' + prevY + '</td>' + gapCell(gapPrev) + '</tr>';
+    h += '<tr class="gaprow"><td>Écart du net avec 2026</td>' + gapCell(gap) + '</tr>';
   }
 
   $('detail').innerHTML = h;
@@ -528,7 +538,6 @@ $('charges').addEventListener('change', function () { setCharges(parseNum(this.v
 });
 update();
 
-var YEARS = ['2026', '2027', '2028', '2029', '2030'];
 (function () {
   var nav = $('tabs'), tabs = [];
   YEARS.forEach(function (y, i) {
